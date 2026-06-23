@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useNoteStore } from "../stores/noteStore";
 import type { Note } from "../stores/noteStore";
@@ -10,9 +10,39 @@ interface NoteWindowProps {
   standalone?: boolean;
 }
 
-export default function NoteWindow({ note, standalone }: NoteWindowProps) {
+const PIN_UNSUPPORTED_MSG =
+  "Pin not supported on this desktop (common on GNOME Wayland).";
+
+export default function NoteWindow({ note, standalone: _standalone }: NoteWindowProps) {
   const updateNote = useNoteStore((s) => s.updateNote);
   const deleteNote = useNoteStore((s) => s.deleteNote);
+  const [localOpacity, setLocalOpacity] = useState(note.opacity);
+  const [pinWarning, setPinWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalOpacity(note.opacity);
+  }, [note.id, note.opacity]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localOpacity !== note.opacity) {
+        updateNote(note.id, { opacity: localOpacity });
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [localOpacity, note.id, note.opacity, updateNote]);
+
+  const applyAlwaysOnTop = useCallback(async (enabled: boolean) => {
+    try {
+      await getCurrentWindow().setAlwaysOnTop(enabled);
+      setPinWarning(null);
+    } catch (e) {
+      console.error("setAlwaysOnTop failed:", e);
+      if (enabled) {
+        setPinWarning(PIN_UNSUPPORTED_MSG);
+      }
+    }
+  }, []);
 
   const handleDragStart = useCallback(
     async (e: React.MouseEvent) => {
@@ -20,7 +50,6 @@ export default function NoteWindow({ note, standalone }: NoteWindowProps) {
       try {
         await getCurrentWindow().startDragging();
       } catch {
-        // Fallback: manual drag via store
         const sx = e.screenX;
         const sy = e.screenY;
         const nx = note.position_x;
@@ -66,18 +95,14 @@ export default function NoteWindow({ note, standalone }: NoteWindowProps) {
   const toggleFloat = async () => {
     const newVal = !note.float_on_top;
     updateNote(note.id, { float_on_top: newVal });
-    try {
-      await getCurrentWindow().setAlwaysOnTop(newVal);
-    } catch (e) {
-      console.error("setAlwaysOnTop failed:", e);
-    }
+    await applyAlwaysOnTop(newVal);
   };
 
   useEffect(() => {
-    getCurrentWindow()
-      .setAlwaysOnTop(note.float_on_top)
-      .catch((e) => console.error("restore always-on-top failed:", e));
-  }, [note.id, note.float_on_top]);
+    if (note.float_on_top) {
+      applyAlwaysOnTop(true);
+    }
+  }, [note.id, note.float_on_top, applyAlwaysOnTop]);
 
   return (
     <div
@@ -86,9 +111,17 @@ export default function NoteWindow({ note, standalone }: NoteWindowProps) {
         width: "100vw",
         height: "100vh",
         backgroundColor: note.color,
-        opacity: note.collapsed ? 1 : note.opacity,
+        opacity: note.collapsed ? 1 : localOpacity,
       }}
     >
+      {pinWarning && (
+        <div className="pin-warning" role="status">
+          {pinWarning}
+          <button type="button" onClick={() => setPinWarning(null)} aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+      )}
       <TitleBar
         title={note.title}
         color={note.color}
@@ -122,14 +155,11 @@ export default function NoteWindow({ note, standalone }: NoteWindowProps) {
               min="0.2"
               max="1"
               step="0.05"
-              value={note.opacity}
-              onChange={(e) =>
-                updateNote(note.id, {
-                  opacity: parseFloat(e.target.value),
-                })
-              }
+              value={localOpacity}
+              onChange={(e) => setLocalOpacity(parseFloat(e.target.value))}
               className="opacity-slider"
               title="Opacity"
+              aria-label="Note opacity"
               onMouseDown={(e) => e.stopPropagation()}
             />
           </div>

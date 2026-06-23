@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=gnotes-linux
+GenericName=Sticky Notes
+Comment=Floating sticky notes for Linux
+Exec=gnotes-linux
+Icon=gnotes-linux
+Terminal=false
+Categories=Utility;Office;
+Keywords=notes;sticky;memo;
+StartupNotify=true

@@ -60,7 +60,44 @@ pub fn run(conn: &Connection) {
             opacity     REAL DEFAULT 1.0,
             FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
         );
+
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+
+        CREATE INDEX IF NOT EXISTS idx_notes_sort ON notes(sort_order, created_at);
+        CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+            title,
+            plain_text,
+            content='notes',
+            content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS notes_fts_insert AFTER INSERT ON notes BEGIN
+            INSERT INTO notes_fts(rowid, title, plain_text)
+            VALUES (new.rowid, new.title, new.plain_text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS notes_fts_delete AFTER DELETE ON notes BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, title, plain_text)
+            VALUES ('delete', old.rowid, old.title, old.plain_text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS notes_fts_update AFTER UPDATE ON notes BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, title, plain_text)
+            VALUES ('delete', old.rowid, old.title, old.plain_text);
+            INSERT INTO notes_fts(rowid, title, plain_text)
+            VALUES (new.rowid, new.title, new.plain_text);
+        END;
         ",
     )
     .expect("failed to run migrations");
+
+    let fts_count: i64 = conn
+        .query_row("SELECT count(*) FROM notes_fts", [], |row| row.get(0))
+        .unwrap_or(0);
+    if fts_count == 0 {
+        let _ = conn.execute_batch("INSERT INTO notes_fts(notes_fts) VALUES('rebuild');");
+    }
 }

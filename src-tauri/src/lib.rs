@@ -10,8 +10,11 @@ use tauri::{
     Manager, WebviewWindow,
 };
 
+use window::WindowManager;
+
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
+    pub windows: WindowManager,
 }
 
 #[cfg(target_os = "linux")]
@@ -44,7 +47,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     TrayIconBuilder::with_id("gnotes-tray")
         .icon(icon)
         .menu(&menu)
-        .tooltip("gnotes")
+        .tooltip("gnotes-linux")
         .on_menu_event(|app, event| match event.id().as_ref() {
             "new_note" => {
                 let state = app.state::<AppState>();
@@ -69,13 +72,13 @@ fn setup_tray(_app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 fn restore_note_windows(app: &tauri::AppHandle, conn: &rusqlite::Connection) {
     let mut stmt = match conn.prepare(
-        "SELECT id, position_x, position_y, width, height, float_on_top FROM notes",
+        "SELECT id, position_x, position_y, width, height, collapsed, float_on_top FROM notes",
     ) {
         Ok(s) => s,
         Err(_) => return,
     };
 
-    let rows: Vec<(String, f64, f64, f64, f64, bool)> = match stmt.query_map([], |row| {
+    let rows: Vec<(String, f64, f64, f64, f64, bool, bool)> = match stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, f64>(1)?,
@@ -83,22 +86,26 @@ fn restore_note_windows(app: &tauri::AppHandle, conn: &rusqlite::Connection) {
             row.get::<_, f64>(3)?,
             row.get::<_, f64>(4)?,
             row.get::<_, i32>(5).unwrap_or(0) != 0,
+            row.get::<_, i32>(6).unwrap_or(0) != 0,
         ))
     }) {
         Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
         Err(_) => return,
     };
 
-    for (id, x, y, w, h, float_on_top) in rows {
+    let manager = WindowManager::new();
+    for (id, x, y, w, h, collapsed, float_on_top) in rows {
+        let (x, y) = window::clamp_position(app, x, y, w, h);
         let opts = window::NoteWindowOpts {
             id,
             x,
             y,
             width: w,
             height: h,
+            collapsed,
             float_on_top,
         };
-        let _ = window::open_note_window(app, &opts);
+        let _ = manager.ensure_note_window(app, &opts);
     }
 }
 
@@ -122,6 +129,7 @@ pub fn run() {
 
             app.manage(AppState {
                 db: Mutex::new(conn),
+                windows: WindowManager::new(),
             });
 
             if let Some(main) = app.get_webview_window("main") {

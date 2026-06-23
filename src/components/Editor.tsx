@@ -62,7 +62,8 @@ export default function Editor({
     onUpdate: ({ editor }) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        onChange(editor.getHTML(), editor.getText());
+        const plain = editor.getText().replace(/[\u200B-\u200D\uFEFF]/g, "");
+        onChange(editor.getHTML(), plain);
       }, 500);
     },
   });

@@ -26,6 +26,8 @@ export interface Note {
 interface NoteStore {
   notes: Note[];
   loading: boolean;
+  error: string | null;
+  clearError: () => void;
   loadNotes: () => Promise<void>;
   loadMyNote: () => Promise<void>;
   createNote: () => Promise<Note | null>;
@@ -33,37 +35,49 @@ interface NoteStore {
   deleteNote: (id: string) => Promise<void>;
 }
 
+function formatError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
   loading: true,
+  error: null,
+
+  clearError: () => set({ error: null }),
 
   loadNotes: async () => {
+    set({ loading: true, error: null });
     try {
       const notes = await invoke<Note[]>("get_all_notes");
-      set({ notes, loading: false });
+      set({ notes, loading: false, error: null });
     } catch (e) {
       console.error("Failed to load notes:", e);
-      set({ loading: false });
+      set({ loading: false, error: formatError(e) });
     }
   },
 
   loadMyNote: async () => {
+    set({ loading: true, error: null });
     try {
       const note = await invoke<Note>("get_my_note");
-      set({ notes: [note], loading: false });
+      set({ notes: [note], loading: false, error: null });
     } catch (e) {
       console.error("Failed to load note:", e);
-      set({ loading: false });
+      set({ loading: false, error: formatError(e) });
     }
   },
 
   createNote: async () => {
+    set({ error: null });
     try {
       const note = await invoke<Note>("create_note");
       set({ notes: [note, ...get().notes] });
       return note;
     } catch (e) {
       console.error("Failed to create note:", e);
+      set({ error: formatError(e) });
       return null;
     }
   },
@@ -72,9 +86,9 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     const current = get().notes.find((n) => n.id === id);
     if (!current) return;
     const merged = { ...current, ...data };
-    const prev = get().notes; // snapshot for rollback
+    const prev = get().notes;
 
-    set({ notes: get().notes.map((n) => (n.id === id ? merged : n)) });
+    set({ notes: get().notes.map((n) => (n.id === id ? merged : n)), error: null });
 
     try {
       await invoke("update_note", {
@@ -94,16 +108,18 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       });
     } catch (e) {
       console.error("Failed to update note, rolling back:", e);
-      set({ notes: prev });
+      set({ notes: prev, error: formatError(e) });
     }
   },
 
   deleteNote: async (id) => {
+    set({ error: null });
     try {
       await invoke("delete_note", { id });
       set({ notes: get().notes.filter((n) => n.id !== id) });
     } catch (e) {
       console.error("Failed to delete note:", e);
+      set({ error: formatError(e) });
     }
   },
 }));

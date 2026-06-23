@@ -50,6 +50,18 @@ fn row_to_note(row: &rusqlite::Row) -> rusqlite::Result<Note> {
     })
 }
 
+fn opts_from_note(note: &Note) -> NoteWindowOpts {
+    NoteWindowOpts {
+        id: note.id.clone(),
+        x: note.position_x,
+        y: note.position_y,
+        width: note.width,
+        height: note.height,
+        collapsed: note.collapsed,
+        float_on_top: note.float_on_top,
+    }
+}
+
 #[tauri::command]
 pub fn get_all_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -91,11 +103,8 @@ pub fn create_note_with_state(app: &AppHandle, state: &State<'_, AppState>) -> R
         .map_err(|e| e.to_string())?;
     }
 
-    let opts = NoteWindowOpts::defaults(id.clone());
-    window::open_note_window(app, &opts)?;
-
-    Ok(Note {
-        id,
+    let note = Note {
+        id: id.clone(),
         title: String::new(),
         content: String::new(),
         plain_text: String::new(),
@@ -114,7 +123,13 @@ pub fn create_note_with_state(app: &AppHandle, state: &State<'_, AppState>) -> R
         sort_order: 0,
         created_at: now.clone(),
         updated_at: now,
-    })
+    };
+
+    state
+        .windows
+        .ensure_note_window(app, &opts_from_note(&note))?;
+
+    Ok(note)
 }
 
 #[tauri::command]
@@ -140,30 +155,48 @@ pub fn update_note(
     opacity: f64,
     locked: bool,
 ) -> Result<(), String> {
-    {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        let now = chrono::Utc::now().to_rfc3339();
-        db.execute(
-            "UPDATE notes SET
-                title = ?1, content = ?2, plain_text = ?3, color = ?4,
-                position_x = ?5, position_y = ?6, width = ?7, height = ?8,
-                collapsed = ?9, float_on_top = ?10, opacity = ?11, locked = ?12,
-                updated_at = ?13
-             WHERE id = ?14",
-            rusqlite::params![
-                title, content, plain_text, color,
-                position_x, position_y, width, height,
-                collapsed as i32, float_on_top as i32, opacity, locked as i32,
-                now, id,
-            ],
-        )
+    let window_opts = NoteWindowOpts {
+        id: id.clone(),
+        x: position_x,
+        y: position_y,
+        width,
+        height,
+        collapsed,
+        float_on_top,
+    };
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute_batch("BEGIN IMMEDIATE;")
         .map_err(|e| e.to_string())?;
+
+    if let Err(e) = db.execute(
+        "UPDATE notes SET
+            title = ?1, content = ?2, plain_text = ?3, color = ?4,
+            position_x = ?5, position_y = ?6, width = ?7, height = ?8,
+            collapsed = ?9, float_on_top = ?10, opacity = ?11, locked = ?12,
+            updated_at = ?13
+         WHERE id = ?14",
+        rusqlite::params![
+            title, content, plain_text, color,
+            position_x, position_y, width, height,
+            collapsed as i32, float_on_top as i32, opacity, locked as i32,
+            chrono::Utc::now().to_rfc3339(),
+            id,
+        ],
+    ) {
+        let _ = db.execute_batch("ROLLBACK;");
+        return Err(e.to_string());
     }
 
     if let Some(win) = app.get_webview_window(&id) {
-        window::apply_window_geometry(&win, position_x, position_y, width, height);
-        window::sync_always_on_top(&win, float_on_top);
+        if let Err(e) = window::apply_note_window_state(&win, &window_opts) {
+            let _ = db.execute_batch("ROLLBACK;");
+            return Err(e);
+        }
     }
+
+    db.execute_batch("COMMIT;")
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

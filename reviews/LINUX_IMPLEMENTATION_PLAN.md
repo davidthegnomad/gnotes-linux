@@ -1,42 +1,38 @@
 # gnotes-linux — implementation checklist
 
-Derived from code audit + fork plan. Full Nemotron review: `../gnotes/reviews/NEMOTRON_LINUX_NATIVE_REVIEW.md` (when complete).
+Full Nemotron review: [NEMOTRON_LINUX_NATIVE_REVIEW.md](./NEMOTRON_LINUX_NATIVE_REVIEW.md)
 
-## Done (2026-06-23)
+## Done
 
-- [x] Fork scaffold at `05_apps_and_extensions/gnotes-linux/`
-- [x] GitHub repo: https://github.com/davidthegnomad/gnotes-linux
-- [x] `src-tauri/src/window/mod.rs` — shared note window builder
-- [x] Restore `float_on_top` on session startup (Rust + TS `useEffect`)
-- [x] Logical position/size in `update_note` (HiDPI)
-- [x] Linux tray: New Note + Quit (`tray-icon` feature)
-- [x] Hide main controller window on Linux
-- [x] Bundling enabled: AppImage + deb
-- [x] `LINUX.md`, `UPSTREAM.md`, fork README
-- [x] `nim-code-review.py --focus` flag for targeted NIM reviews
+- [x] Fork scaffold + GitHub repo
+- [x] Window factory + `WindowManager` (dedupe on create/restore)
+- [x] Restore `float_on_top`, `collapsed` geometry on startup
+- [x] Logical HiDPI coordinates + monitor clamp on restore
+- [x] Linux tray (New Note / Quit), hidden main window
+- [x] AppImage + deb bundling
+- [x] **CSP enabled** (`tauri.conf.json`)
+- [x] **SQLite WAL + indexes + FTS5** (`migrations.rs`)
+- [x] **Transactional `update_note`** (rollback if window apply fails)
+- [x] **Collapsed titlebar height** in Rust window ops
+- [x] **Opacity slider debounce** (200ms)
+- [x] **Color picker a11y** (label, no click swallow)
+- [x] **Plain-text sanitization** (zero-width chars)
+- [x] **Store error state + retry UI** (`App.tsx`)
+- [x] **Pin failure banner** on Wayland (`NoteWindow.tsx`)
+- [x] **`.desktop` file** (`src-tauri/gnotes.desktop` — manual/copy into bundle)
+- [x] **GitHub Actions** Linux AppImage CI (`.github/workflows/linux-build.yml`)
 
-## Next (P1)
+## Manual / deferred
 
-- [ ] Manual compositor test matrix on Nobara (fill table in `LINUX.md`)
-- [ ] `cargo tauri build` release smoke test
-- [ ] Tray tooltip/icon polish (PNG sizes for 22px panel)
-- [ ] User-visible error when `setAlwaysOnTop` fails on Wayland
-- [ ] Clamp restored window positions to visible monitor bounds
+- [ ] Compositor test matrix on Nobara (`LINUX.md` table — run locally)
+- [ ] `cargo tauri build` release smoke test on your machine
+- [ ] Flatpak manifest + Flathub
+- [ ] Single-instance plugin
+- [ ] Opaque transparency fallback setting
+- [ ] Wayland layer-shell / X11 shape platform module (custom shapes — v2)
+- [ ] Partial `update_note` payload / `tauri-specta` (maintainability — later)
+- [ ] Integration tests (Nemotron test gap list)
 
-## Later (P2)
+## Upstream
 
-- [ ] Flatpak manifest + Flathub submission
-- [ ] GitHub Actions `ubuntu-latest` CI build
-- [ ] Single-instance plugin (relaunch focuses tray)
-- [ ] Opaque fallback mode for broken transparency
-- [ ] `.desktop` Categories and keywords review
-
-## Upstream cherry-pick candidates
-
-Watch `davidthegnomad/gnotes` for:
-
-- Editor / TipTap fixes
-- SQLite migration changes
-- Generic security / capability updates
-
-Do **not** merge macOS controller UX or iCloud work — see [UPSTREAM.md](./UPSTREAM.md).
+Cherry-pick shared fixes only — see [UPSTREAM.md](../UPSTREAM.md).

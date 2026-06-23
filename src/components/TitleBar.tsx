@@ -86,14 +86,16 @@ export default function TitleBar({
             onClick={(e) => { stop(e); onColorChange(c); }}
           />
         ))}
-        <input
-          type="color"
-          className="color-input"
-          value={color}
-          onChange={(e) => onColorChange(e.target.value)}
-          onClick={stop}
-          onMouseDown={stop}
-        />
+        <label className="color-input-label" title="Custom color">
+          <input
+            type="color"
+            className="color-input"
+            value={color}
+            onChange={(e) => onColorChange(e.target.value)}
+            onMouseDown={stop}
+            aria-label="Custom note color"
+          />
+        </label>
       </div>
 
       <div className="titlebar-actions">

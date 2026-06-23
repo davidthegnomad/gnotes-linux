@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gnotes-linux — floating sticky notes for Linux</title>
+  <meta name="description" content="Linux-native sticky notes fork. Tray-first UX, Tauri 2, transparent floating windows. Built on Nobara." />
+  <link rel="icon" href="https://github.com/davidthegnomad.png" />
+  <style>
+    :root { color-scheme: dark light; --bg: #0f1117; --card: #1a1f2e; --text: #e8eaef; --muted: #9aa3b2; --accent: #ffeb3b; --link: #64b5f6; }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f4f5f7; --card: #fff; --text: #1a1a1a; --muted: #555; }
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+    .tagline { color: var(--muted); margin: 0 0 1.5rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1rem 0; border: 1px solid rgba(128,128,128,.2); }
+    a { color: var(--link); }
+    ul { padding-left: 1.2rem; }
+    .cta { display: inline-block; margin-top: 0.5rem; padding: 0.6rem 1.1rem; background: var(--link); color: #fff !important; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .note { display: inline-block; width: 140px; height: 120px; border-radius: 6px; margin: 0.25rem; vertical-align: top; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+    .y { background: #ffeb3b; } .b { background: #a5d6ff; } .p { background: #f8bbd0; }
+    footer { margin-top: 2rem; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div aria-hidden="true" style="margin-bottom:1rem">
+      <span class="note y"></span><span class="note b"></span><span class="note p"></span>
+    </div>
+    <h1>gnotes-linux</h1>
+    <p class="tagline">Floating sticky notes for Linux — tray-first, Tauri 2, Nobara-tested.</p>
+
+    <div class="card">
+      <h2 style="margin-top:0;font-size:1.1rem">Links</h2>
+      <ul>
+        <li><a href="https://github.com/davidthegnomad/gnotes-linux">Source on GitHub</a></li>
+        <li><a href="https://github.com/davidthegnomad/gnotes-linux/releases">Releases (AppImage / deb)</a></li>
+        <li><a href="https://davidcole.cloud/notes/gnotes-linux-sticky-notes-nobara">Build log on davidcole.cloud</a></li>
+        <li><a href="https://davidcole.cloud/apps">Apps &amp; tools hub</a></li>
+        <li><a href="https://github.com/davidthegnomad/gnotes">Upstream gnotes (macOS-first)</a></li>
+      </ul>
+      <a class="cta" href="https://github.com/davidthegnomad/gnotes-linux/releases/latest">Download latest release</a>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;font-size:1.1rem">Features</h2>
+      <ul>
+        <li>System tray: New Note + Quit</li>
+        <li>Transparent borderless note windows</li>
+        <li>Rich text, colors, pin, lock, collapse</li>
+        <li>SQLite persistence + session restore</li>
+        <li>AppImage and .deb packaging</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;font-size:1.1rem">Quick start (dev)</h2>
+      <pre style="overflow:auto;font-size:0.85rem"><code>git clone https://github.com/davidthegnomad/gnotes-linux
+cd gnotes-linux
+npm install
+cargo tauri dev</code></pre>
+      <p style="font-size:0.9rem;color:var(--muted)">Requires WebKitGTK 4.1 — see <a href="https://github.com/davidthegnomad/gnotes-linux/blob/master/LINUX.md">LINUX.md</a>.</p>
+    </div>
+
+    <footer>
+      Fork of <a href="https://github.com/davidthegnomad/gnotes">gnotes</a> by David Cole / Gnomad Studio.
+      Site: <a href="https://davidcole.cloud">davidcole.cloud</a>
+    </footer>
+  </div>
+</body>
+</html>

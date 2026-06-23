@@ -1,0 +1,155 @@
+GNOTES — AI CODING AGENT CONTEXT
+Generated with NVIDIA NIM (google/gemma-3n-e2b-it); human-verified against source.
+
+IDENTITY
+  Name: gnotes
+  Purpose: Cross-platform sticky notes desktop app (Stickies replacement)
+  Version: 0.1.0 alpha
+  Repo: https://github.com/davidthegnomad/gnotes
+  Bundle id: com.gnotes.app
+  Pricing: Free / open source
+  Platform focus: macOS first; Windows/Linux planned
+
+PATHS
+  Frontend root: src/
+  Backend root: src-tauri/src/
+  Tauri config: src-tauri/tauri.conf.json
+  Product spec: PLAN.md
+  Human docs: docs/OVERVIEW.md, README.md
+  This file: AI.txt
+  DB file: {app_data_dir}/gnotes.db (created at runtime by Tauri)
+
+STACK
+  Tauri v2 + Rust 2021 edition
+  React 18 + TypeScript + Vite 5
+  TipTap 2 (StarterKit, Underline, TextStyle, Placeholder, custom FontSize extension)
+  Zustand 5 for frontend state
+  rusqlite 0.31 (bundled SQLite)
+  uuid, chrono, serde, serde_json
+
+MULTI-WINDOW MODEL
+  - Static window "main" in tauri.conf.json: small controller UI (note count, New Note).
+  - Each note: WebviewWindowBuilder with label = note UUID (same as notes.id).
+  - Every window loads index.html; App.tsx branches on window label.
+  - main → loadNotes() → controller div
+  - uuid → loadMyNote() → get_my_note matches window.label() to notes.id
+  - restore_note_windows() in lib.rs recreates all note windows on app start.
+
+TAURI COMMANDS (src-tauri/src/commands/notes.rs)
+  All registered in lib.rs invoke_handler.
+
+  get_all_notes() -> Vec<Note>
+    SELECT * FROM notes ORDER BY sort_order, created_at
+
+  get_my_note() -> Note
+    Uses tauri::Window label as note id: SELECT * FROM notes WHERE id = ?
+
+  create_note() -> Note
+    1. INSERT note with UUID, defaults (color #ffeb3b, 320x400, position 200,200)
+    2. Release DB lock BEFORE window creation (deadlock avoidance)
+    3. WebviewWindowBuilder: decorations false, transparent true, resizable true
+
+  update_note(
+    id, title, content, plain_text, color,
+    position_x, position_y, width, height,
+    collapsed, float_on_top, opacity, locked
+  ) -> ()
+    Updates DB + set_position/set_size on matching webview window.
+    Frontend invoke uses camelCase: plainText, positionX, floatOnTop, etc.
+
+  delete_note(id) -> ()
+    DELETE FROM notes; close webview window if open.
+
+NOTE STRUCT (Rust/TS mirror)
+  id, title, content, plain_text, color,
+  position_x, position_y, width, height,
+  collapsed, float_on_top, opacity, locked,
+  shape_id, bg_config, font_config, sort_order,
+  created_at, updated_at
+
+SQLITE SCHEMA (migrations.rs — tables created; shapes/tags/bg_images unused in v0.1)
+  notes — primary table (see NOTE STRUCT)
+  shapes — future custom shapes (schema ready)
+  tags, note_tags — future tagging (schema ready)
+  bg_images — future image backgrounds (schema ready)
+
+FILE RESPONSIBILITIES
+  src/App.tsx
+    Entry; loading | main | note modes based on window label.
+
+  src/stores/noteStore.ts
+    Zustand store: loadNotes, loadMyNote, createNote, updateNote, deleteNote.
+    updateNote: optimistic merge → invoke → rollback on error.
+
+  src/components/NoteWindow.tsx
+    Full note chrome: TitleBar, Editor, opacity slider, resize handle.
+    Drag via getCurrentWindow().startDragging() or manual mousemove fallback.
+    Resize min: 200w x 100h.
+
+  src/components/TitleBar.tsx
+    Title edit (double-click), 6 preset colors + input[type=color],
+    collapse / float / lock / close. Entire bar is drag region.
+
+  src/components/Editor.tsx
+    TipTap wrapper; 500ms debounced onChange → content + plain_text.
+    setContent(content, false) on external content sync to avoid loops.
+
+  src/components/Toolbar.tsx
+    Bold, italic, underline, strike, H1-H3, bullet/ordered lists, font size select.
+
+  src-tauri/src/lib.rs
+    setup: app_data_dir, open gnotes.db, migrations, restore_note_windows,
+    manage AppState { db: Mutex<Connection> }.
+
+  src-tauri/src/commands/notes.rs
+    row_to_note() maps SQLite row → Note struct.
+
+STATE FLOW
+  1. Type in editor → debounced onChange → updateNote (optimistic) → invoke update_note → Rust persists
+  2. Drag title bar → startDragging or manual position updates → update_note
+  3. Resize handle → mousemove → update_note width/height
+  4. New note from main → create_note → new window opens with fresh UUID
+  5. App launch → restore_note_windows → each note window loads and calls get_my_note
+
+CONVENTIONS
+  Rust: snake_case; TypeScript: camelCase components, camelCase invoke args
+  Tauri converts camelCase invoke params to snake_case Rust args
+  CSS classes: kebab-case in App.css
+  Do not hold DB Mutex across WebviewWindowBuilder calls
+  Window label MUST equal note.id for get_my_note
+
+IMPLEMENTED (v0.1)
+  Multi-window notes, rich text, colors, drag/resize, collapse, float, lock,
+  opacity, auto-save, SQLite persistence, session window restore, main controller window
+
+NOT IMPLEMENTED (schema or PLAN only)
+  Custom backgrounds/shapes UI, tags, search, reminders, dark mode, cloud sync,
+  markdown shortcuts, spell check, import/export, print, note list panel,
+  native menu shortcuts, non-rectangular masks, Windows/Linux polish
+
+EXTENSION RECIPES
+  New Tauri command:
+    1. Add #[tauri::command] in commands/
+    2. Register in lib.rs invoke_handler
+    3. invoke() from noteStore or component
+  New note field:
+    1. ALTER or extend migrations.rs
+    2. Note struct Rust + TS interface
+    3. row_to_note, update_note SQL + params, store.updateNote payload
+  New UI in note window:
+    1. Component under src/components/
+    2. Wire in NoteWindow.tsx, styles in App.css
+
+PITFALLS
+  - DB Mutex deadlock if held during window create (create_note releases lock explicitly)
+  - get_my_note fails if window label ≠ note id
+  - Optimistic update without snapshot → cannot rollback on invoke failure
+  - Editor content sync must use setContent(..., false) to prevent cursor/history bugs
+  - Color picker needs stopPropagation on mouseDown or drag starts accidentally
+  - float_on_top: update DB + call setAlwaysOnTop on webview
+  - shapes/tags/bg_images tables exist but have no Rust commands or UI yet — do not assume they work
+
+DOC REGENERATION (dev only, not runtime)
+  scripts/generate-docs.py --provider nvidia
+  Uses google/gemma-3n-e2b-it on NVIDIA NIM (gemma-4-31b-it times out on free tier).
+  Requires .env with NVIDIA_API_KEY (gitignored). Always human-verify output.
